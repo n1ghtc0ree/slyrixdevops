@@ -43,6 +43,14 @@ jobs:
           mv site-nightly.db site-nightly-$D.db
           ls -la site-*.db
 
+      - name: Verify DB integrity
+        run: |
+          for f in site-stable-*.db site-nightly-*.db; do
+            OUT=$(sqlite3 "$f" "PRAGMA integrity_check;" 2>&1)
+            echo "$f: $OUT"
+            [ "$OUT" = "ok" ] || exit 1
+          done
+
       - uses: actions/upload-artifact@v5
         with:
           name: site-dbs-${{ github.run_id }}
@@ -61,3 +69,13 @@ jobs:
               -X POST "https://api.telegram.org/bot$OPS_BOT_TOKEN/sendDocument" \
               -F chat_id="$OPS_CHAT_ID" -F document=@"$f";
           done
+
+      - name: Notify TG on failure
+        if: failure()
+        env:
+          OPS_BOT_TOKEN: ${{ secrets.OPS_BOT_TOKEN }}
+          OPS_CHAT_ID: ${{ secrets.OPS_CHAT_ID }}
+        run: |
+          curl -s -X POST "https://api.telegram.org/bot$OPS_BOT_TOKEN/sendMessage" \
+            -H "Content-Type: application/json" \
+            -d "{\"chat_id\":\"$OPS_CHAT_ID\",\"text\":\"Бэкап FAILED — смотри Actions\"}" > /dev/null
