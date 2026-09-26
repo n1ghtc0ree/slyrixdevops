@@ -6,7 +6,7 @@
 
 - `scripts/watch.py` — вотчер (только stdlib): `/health` прод+найтли, инциденты Fly statuspage API. Орёт в опс-бота только на переходах ok↔bad и на новых/закрытых инцидентах (дедуплика через `STATE_FILE`).
 - `.github/workflows/watch.yml` — крон каждые 5 мин.
-- `.github/workflows/backup.yml` — бэкап `site.db` с обеих машин по воскресеньям + вручную, артефакты 30 дней.
+- `.github/workflows/backup.yml` — бэкап `site.db` с обеих машин по воскресеньям + вручную: артефакты 30 дней + файлы в ТГ (`site-stable-ДАТА.db`, `site-nightly-ДАТА.db`).
 
 ## Секреты репозитория (Settings → Secrets → Actions)
 

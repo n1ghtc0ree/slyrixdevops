@@ -22,10 +22,28 @@ jobs:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
         run: flyctl sftp get /data/site.db ./site-nightly.db -a slyrixwiki-nightly
 
+      - name: Rename DBs with date
+        run: |
+          D=$(date -u +%F)
+          mv site-prod.db site-stable-$D.db
+          mv site-nightly.db site-nightly-$D.db
+          ls -la site-*.db
+
       - uses: actions/upload-artifact@v5
         with:
           name: site-dbs-${{ github.run_id }}
           path: |
-            site-prod.db
-            site-nightly.db
+            site-stable-*.db
+            site-nightly-*.db
           retention-days: 30
+
+      - name: Send DBs to Telegram
+        env:
+          OPS_BOT_TOKEN: ${{ secrets.OPS_BOT_TOKEN }}
+          OPS_CHAT_ID: ${{ secrets.OPS_CHAT_ID }}
+        run: |
+          for f in site-stable-*.db site-nightly-*.db; do
+            curl -s -o /dev/null -w "$f tg:%{http_code}\n" \
+              -X POST "https://api.telegram.org/bot$OPS_BOT_TOKEN/sendDocument" \
+              -F chat_id="$OPS_CHAT_ID" -F document=@"$f";
+          done
