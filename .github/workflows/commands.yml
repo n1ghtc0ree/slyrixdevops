@@ -1,8 +1,9 @@
 name: ops-commands
 
+# Fallback на случай смерти вебхука (команды живут в коде аппов: routers/ops.py).
+# Пока вебхук активен, getUpdates пуст и джоба ничего не делает.
+# Вернуть в строй: удалить вебхук (deleteWebhook) + вернуть сюда крон.
 on:
-  schedule:
-    - cron: "*/5 * * * *"
   workflow_dispatch:
 
 jobs:

@@ -5,10 +5,23 @@
 ## Что внутри
 
 - `scripts/watch.py` — вотчер (только stdlib): `/health` прод+найтли, инциденты Fly statuspage API. Орёт в опс-бота только на переходах ok↔bad и на новых/закрытых инцидентах (дедуплика через `STATE_FILE`).
-- `scripts/commands.py` — команды боту (крон каждые 5 мин, только stdlib):
-  `/ping` (понг + живой статус стендов), `/backup` (дергает `ops-backup`
-  через GitHub API, базы прилетают как обычно). Отвечает только своему
-  `OPS_CHAT_ID`, остальных игнорит. Стейт (`update_offset`) — `.ops_cmd_state.json`.
+## Команды боту — мгновенно через вебхук
+
+`/ping` и `/backup` живут в коде аппов (`routers/ops.py`, роут `/ops-hook`),
+отдельного сервера нет. Проверка — `OPS_HOOK_SECRET` в заголовке
+`X-Telegram-Bot-Api-Secret-Token`. Отвечает только своему `OPS_CHAT_ID`.
+Вотчер при 2 подряд даунах прода переставляет вебхук на найтли и возвращает
+обратно при оживлении (флип с уведомлением в бота). Первичная установка:
+
+```powershell
+curl -X POST "https://api.telegram.org/bot$OPS_BOT_TOKEN/setWebhook" `
+  -H "Content-Type: application/json" `
+  -d '{"url":"https://wiki.slyrix.xyz/ops-hook","secret_token":"<OPS_HOOK_SECRET>"}'
+```
+
+`scripts/commands.py` + `ops-commands` (только ручной запуск) — fallback:
+если вебхук убит (`deleteWebhook`), крон-опрос `getUpdates` снова работает.
+Секреты: + `OPS_HOOK_SECRET` (и на машинах, и в Secrets репы для failover).
 - `.github/workflows/watch.yml` — крон каждые 5 мин.
 - `.github/workflows/backup.yml` — бэкап `site.db` с обеих машин по воскресеньям + вручную: артефакты 30 дней + файлы в ТГ (`site-stable-ДАТА.db`, `site-nightly-ДАТА.db`).
 

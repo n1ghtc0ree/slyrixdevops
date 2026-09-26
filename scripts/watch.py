@@ -15,6 +15,10 @@ APPS = {
     "prod": "https://wiki.slyrix.xyz",
     "nightly": "https://nightly.slyrix.xyz",
 }
+WEBHOOKS = {
+    "prod": "https://wiki.slyrix.xyz/ops-hook",
+    "nightly": "https://nightly.slyrix.xyz/ops-hook",
+}
 FLY_STATUS_API = "https://status.flyio.net/api/v2/summary.json"
 # Наши регионы: инциденты остальных смотрим краем глаза, но орём только по этим.
 OUR_REGIONS = ("fra", "ams", "Fra", "Ams", "Frankfurt", "Amsterdam")
@@ -106,6 +110,28 @@ def relevant(inc):
     return False
 
 
+def set_webhook(url):
+    """Переключить вебхук опс-бота на другой стенд. Возвращает True при успехе."""
+    token = os.environ.get("OPS_BOT_TOKEN", "") or os.environ.get("BOT_TOKEN", "")
+    secret = os.environ.get("OPS_HOOK_SECRET", "")
+    if not token or not secret:
+        print("SKIP setWebhook (no OPS_BOT_TOKEN/OPS_HOOK_SECRET)", file=sys.stderr)
+        return False
+    payload = json.dumps({"url": url, "secret_token": secret}).encode("utf-8")
+    req = urllib.request.Request(
+        f"https://api.telegram.org/bot{token}/setWebhook",
+        data=payload,
+        headers={"Content-Type": "application/json"},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=TIMEOUT) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            return bool(data.get("ok"))
+    except Exception as exc:
+        print("setWebhook failed:", exc, file=sys.stderr)
+        return False
+
+
 def main():
     state = load_state()
     apps_state = state.get("apps", {})
@@ -140,6 +166,22 @@ def main():
         state["incidents"] = sorted(current)
 
     state["apps"] = apps_state
+
+    # Failover вебхука команд: прод лежит 2 тика подряд — команды едут
+    # через найтли; прод ожил — возвращаем обратно. Флип только со сменой.
+    if apps_state.get("prod", "ok") != "ok":
+        state["prod_down_streak"] = state.get("prod_down_streak", 0) + 1
+    else:
+        state["prod_down_streak"] = 0
+    desired = (
+        WEBHOOKS["nightly"] if state["prod_down_streak"] >= 2 else WEBHOOKS["prod"]
+    )
+    if state.get("webhook") != desired:
+        if set_webhook(desired):
+            state["webhook"] = desired
+            where = "nightly" if desired == WEBHOOKS["nightly"] else "prod"
+            send(f"ops webhook → {where}")
+
     save_state(state)
 
 
