@@ -22,6 +22,13 @@ python scripts/watch.py
 
 Токен/чат берутся из env (`OPS_BOT_TOKEN`, `OPS_CHAT_ID`; `BOT_TOKEN` тоже подойдёт как fallback). Без них — dry-run: проверки идут, отправка скипается. Состояние — `.ops_state.json` (в `.gitignore`, не коммитить).
 
-## Sentry — отдельно
+## Sentry — в коде вики
 
-Стектрейсы (500-е + точечно 400-е) живут в коде самого вики (`main.py`), не здесь. Это следующий шаг.
+Стектрейсы живут в самом вики (`observability.py`, инициализация в `main.py`):
+500-е — всегда (`report_error` в exception handler), из 400-х — только
+точечно (`security_event`, level warning): срабатывания IP-автобана,
+`ipban_kill` (сессия с забаненного IP), 403 на `/internal` без токена и
+попытки раздать/снять admin-роли не-главным. Обычный 400-шум (429-троттлинг,
+баны, 404) фильтруется `before_send` — квоту не жрёт.
+Без `SENTRY_DSN` в окружении — полный no-op. DSN кладётся через
+`fly secrets set SENTRY_DSN=... -a slyrixwiki` (+ nightly).
