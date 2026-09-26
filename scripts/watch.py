@@ -135,7 +135,9 @@ def set_webhook(url):
 def main():
     state = load_state()
     apps_state = state.get("apps", {})
-    known_incidents = set(state.get("incidents", []))
+    raw_known = state.get("incidents", [])
+    # Миграция со старого формата (плоский список id).
+    known_incidents = {i: "?" for i in raw_known} if isinstance(raw_known, list) else dict(raw_known)
 
     for name, base in APPS.items():
         status, detail = check_app(name, base)
@@ -151,19 +153,25 @@ def main():
     if incidents is None:
         print(err, file=sys.stderr)
     else:
-        current = set()
+        current = {}
         for inc in incidents:
             if not relevant(inc):
                 continue
-            current.add(inc["id"])
-            if inc["id"] not in known_incidents:
+            current[inc["id"]] = inc["status"]
+            prev = known_incidents.get(inc["id"])
+            if prev is None:
                 send(
                     f"FLY incident [{inc['impact']}]: {inc['name']} "
                     f"(status: {inc['status']})"
                 )
-        for gone in known_incidents - current:
+            elif prev != inc["status"]:
+                send(
+                    f"FLY incident [{inc['impact']}]: {inc['name']} "
+                    f"({prev} → {inc['status']})"
+                )
+        for gone in known_incidents.keys() - current.keys():
             send(f"FLY incident resolved: {gone}")
-        state["incidents"] = sorted(current)
+        state["incidents"] = current
 
     state["apps"] = apps_state
 
