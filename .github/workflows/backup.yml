@@ -22,7 +22,7 @@ jobs:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
         run: flyctl sftp get /data/site.db ./site-nightly.db -a slyrixwiki-nightly
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: site-dbs-${{ github.run_id }}
           path: |
