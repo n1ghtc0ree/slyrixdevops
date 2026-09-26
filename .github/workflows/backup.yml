@@ -1,0 +1,31 @@
+name: ops-backup
+
+on:
+  schedule:
+    # Воскресенье 03:00 UTC, плюс ручной запуск.
+    - cron: "0 3 * * 0"
+  workflow_dispatch:
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+
+      - name: Pull prod DB
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        run: flyctl sftp get /data/site.db ./site-prod.db -a slyrixwiki
+
+      - name: Pull nightly DB
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        run: flyctl sftp get /data/site.db ./site-nightly.db -a slyrixwiki-nightly
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: site-dbs-${{ github.run_id }}
+          path: |
+            site-prod.db
+            site-nightly.db
+          retention-days: 30

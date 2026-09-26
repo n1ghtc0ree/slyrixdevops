@@ -1,0 +1,33 @@
+name: ops-watch
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Restore alert state
+        uses: actions/cache/restore@v4
+        with:
+          path: .ops_state.json
+          key: ops-state-v1
+          restore-keys: ops-state-v1
+
+      - name: Run watcher
+        env:
+          OPS_BOT_TOKEN: ${{ secrets.OPS_BOT_TOKEN }}
+          OPS_CHAT_ID: ${{ secrets.OPS_CHAT_ID }}
+          STATE_FILE: .ops_state.json
+        run: python3 scripts/watch.py
+
+      - name: Save alert state
+        uses: actions/cache/save@v4
+        if: always()
+        with:
+          path: .ops_state.json
+          key: ops-state-v1-${{ github.run_id }}
