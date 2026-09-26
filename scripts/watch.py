@@ -127,8 +127,10 @@ def main():
     else:
         current = set()
         for inc in incidents:
+            if not relevant(inc):
+                continue
             current.add(inc["id"])
-            if inc["id"] not in known_incidents and relevant(inc):
+            if inc["id"] not in known_incidents:
                 send(
                     f"FLY incident [{inc['impact']}]: {inc['name']} "
                     f"(status: {inc['status']})"

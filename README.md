@@ -5,6 +5,10 @@
 ## Что внутри
 
 - `scripts/watch.py` — вотчер (только stdlib): `/health` прод+найтли, инциденты Fly statuspage API. Орёт в опс-бота только на переходах ok↔bad и на новых/закрытых инцидентах (дедуплика через `STATE_FILE`).
+- `scripts/commands.py` — команды боту (крон каждые 5 мин, только stdlib):
+  `/ping` (понг + живой статус стендов), `/backup` (дергает `ops-backup`
+  через GitHub API, базы прилетают как обычно). Отвечает только своему
+  `OPS_CHAT_ID`, остальных игнорит. Стейт (`update_offset`) — `.ops_cmd_state.json`.
 - `.github/workflows/watch.yml` — крон каждые 5 мин.
 - `.github/workflows/backup.yml` — бэкап `site.db` с обеих машин по воскресеньям + вручную: артефакты 30 дней + файлы в ТГ (`site-stable-ДАТА.db`, `site-nightly-ДАТА.db`).
 

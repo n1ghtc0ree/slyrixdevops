@@ -1,0 +1,36 @@
+name: ops-commands
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+jobs:
+  commands:
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write # для dispatch бэкапа через GitHub API
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Restore commands state
+        uses: actions/cache/restore@v5
+        with:
+          path: .ops_cmd_state.json
+          key: ops-cmd-v1
+          restore-keys: ops-cmd-v1
+
+      - name: Run commands
+        env:
+          OPS_BOT_TOKEN: ${{ secrets.OPS_BOT_TOKEN }}
+          OPS_CHAT_ID: ${{ secrets.OPS_CHAT_ID }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CMD_STATE_FILE: .ops_cmd_state.json
+        run: python3 scripts/commands.py
+
+      - name: Save commands state
+        uses: actions/cache/save@v5
+        if: always()
+        with:
+          path: .ops_cmd_state.json
+          key: ops-cmd-v1-${{ github.run_id }}
