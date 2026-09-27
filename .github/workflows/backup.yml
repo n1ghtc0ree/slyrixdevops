@@ -23,7 +23,7 @@ jobs:
           curl -s -o /dev/null --max-time 90 https://wiki.slyrix.xyz/health || true
           for i in 1 2 3 4 5 6; do
             if flyctl sftp get /data/site.db ./site-prod.db -a slyrixwiki && [ -s ./site-prod.db ]; then break; fi
-            echo "prod pull retry $i, ждём 20с..."; sleep 20
+            echo "prod pull retry $i..."; if [ "$i" -lt 6 ]; then sleep 20; fi
           done
           test -s ./site-prod.db
 
@@ -34,7 +34,7 @@ jobs:
           curl -s -o /dev/null --max-time 90 https://nightly.slyrix.xyz/health || true
           for i in 1 2 3 4 5 6; do
             if flyctl sftp get /data/site.db ./site-nightly.db -a slyrixwiki-nightly && [ -s ./site-nightly.db ]; then break; fi
-            echo "nightly pull retry $i, ждём 20с..."; sleep 20
+            echo "nightly pull retry $i..."; if [ "$i" -lt 6 ]; then sleep 20; fi
           done
           test -s ./site-nightly.db
 
@@ -72,6 +72,6 @@ jobs:
           OPS_BOT_TOKEN: ${{ secrets.OPS_BOT_TOKEN }}
           OPS_CHAT_ID: ${{ secrets.OPS_CHAT_ID }}
         run: |
-          curl -s -X POST "https://api.telegram.org/bot$OPS_BOT_TOKEN/sendMessage" \
+          curl -s -f -X POST "https://api.telegram.org/bot$OPS_BOT_TOKEN/sendMessage" \
             -H "Content-Type: application/json" \
             -d "{\"chat_id\":\"$OPS_CHAT_ID\",\"text\":\"Бэкап FAILED — смотри Actions\"}" > /dev/null

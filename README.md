@@ -23,7 +23,7 @@ curl -X POST "https://api.telegram.org/bot$OPS_BOT_TOKEN/setWebhook" `
 если вебхук убит (`deleteWebhook`), крон-опрос `getUpdates` снова работает.
 Секреты: + `OPS_HOOK_SECRET` (и на машинах, и в Secrets репы для failover).
 - `.github/workflows/watch.yml` — крон каждые 5 мин.
-- `.github/workflows/backup.yml` — бэкап `site.db` с обеих машин по воскресеньям + вручную: артефакты 30 дней + файлы в ТГ (`site-stable-ДАТА.db`, `site-nightly-ДАТА.db`).
+- `.github/workflows/backup.yml` — бэкап `site.db` с обеих машин по воскресеньям + вручную: файлы в ТГ (`site-stable-ДАТА.db`, `site-nightly-ДАТА.db`), гейт `integrity_check`, без артефактов (репа паблик).
 
 ## Секреты репозитория (Settings → Secrets → Actions)
 

@@ -24,6 +24,7 @@ jobs:
         env:
           OPS_BOT_TOKEN: ${{ secrets.OPS_BOT_TOKEN }}
           OPS_CHAT_ID: ${{ secrets.OPS_CHAT_ID }}
+          OPS_HOOK_SECRET: ${{ secrets.OPS_HOOK_SECRET }}
           STATE_FILE: .ops_state.json
         run: python3 scripts/watch.py
 

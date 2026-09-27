@@ -80,7 +80,9 @@ def save_state(state):
 
 
 def handle(text):
-    cmd = (text or "").strip().split()[0].split("@")[0] if text else ""
+    # "   " (только пробелы) раньше ронял split()[0] с IndexError.
+    parts = (text or "").strip().split()
+    cmd = parts[0].split("@")[0] if parts else ""
     if cmd == "/ping":
         lines = []
         for name, base in APPS.items():
@@ -111,11 +113,16 @@ def main():
         offset = max(offset, upd.get("update_id", 0) + 1)
     # Фолбэк-поллер после долгой паузы: очередь может содержать десятки
     # повторов — выполняем только последние 5, остальное просто подтверждаем.
+    # Каждый апдейт в try: один битый не должен клинить всю очередь.
     for upd in pending[-5:]:
-        msg = upd.get("message", {}) or {}
-        if str(msg.get("chat", {}).get("id", "")) != CHAT:
+        try:
+            msg = upd.get("message", {}) or {}
+            if str(msg.get("chat", {}).get("id", "")) != CHAT:
+                continue
+            handle(msg.get("text", ""))
+        except Exception as exc:
+            print("update failed, skipping:", exc, file=sys.stderr)
             continue
-        handle(msg.get("text", ""))
     state["update_offset"] = offset
     save_state(state)
 

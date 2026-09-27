@@ -3,7 +3,7 @@
 Запуск: python3 scripts/watch.py (нужны env OPS_BOT_TOKEN, OPS_CHAT_ID).
 Только stdlib, без зависимостей. Состояние — STATE_FILE (дедуплика алертов:
 орём только на переходах ok<->bad и на новых инцидентах).
-Выход всегда 0: наша работа — алертить, а не падать.
+Выход 0 всегда, кроме слепоты алёртов: мёртвый токен бота = exit 1.
 """
 
 import json
@@ -41,16 +41,30 @@ def fetch_json(url):
         return resp.status, json.loads(resp.read().decode("utf-8"))
 
 
+HEALTH_TIMEOUT = 30
+
+
 def check_app(name, base):
-    try:
-        status, data = fetch_json(base.rstrip("/") + "/health")
-    except Exception as exc:
-        return ("down", f"{type(exc).__name__}: {exc}")
-    if status != 200:
-        return ("down", f"HTTP {status}")
-    if not isinstance(data, dict) or data.get("status") != "ok":
-        return ("down", f"bad body: {str(data)[:120]}")
-    return ("ok", "")
+    # Две попытки: первая после сна машины часто упирается в побудку.
+    last = ("down", "unreachable")
+    for _ in range(2):
+        try:
+            req = urllib.request.Request(
+                base.rstrip("/") + "/health",
+                headers={"User-Agent": "slyrix-ops-watch/1.0"},
+            )
+            with urllib.request.urlopen(req, timeout=HEALTH_TIMEOUT) as resp:
+                status, data = resp.status, json.loads(resp.read().decode("utf-8"))
+        except Exception as exc:
+            last = ("down", f"{type(exc).__name__}: {exc}")
+            time.sleep(5)
+            continue
+        if status != 200:
+            return ("down", f"HTTP {status}")
+        if not isinstance(data, dict) or data.get("status") != "ok":
+            return ("down", f"bad body: {str(data)[:120]}")
+        return ("ok", "")
+    return last
 
 
 def check_fly():
@@ -179,6 +193,9 @@ def main():
 
     incidents, err = check_fly()
     if incidents is None:
+        state["fly_fail_streak"] = state.get("fly_fail_streak", 0) + 1
+        if state["fly_fail_streak"] == 3:
+            send("Fly status API blind 3 тика подряд — инциденты не видны")
         print(err, file=sys.stderr)
     else:
         current = {}
@@ -200,6 +217,7 @@ def main():
         for gone in known_incidents.keys() - current.keys():
             send(f"FLY incident resolved: {gone}")
         state["incidents"] = current
+        state["fly_fail_streak"] = 0
 
     state["apps"] = apps_state
 
