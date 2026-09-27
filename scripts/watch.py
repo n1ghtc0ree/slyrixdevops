@@ -8,7 +8,9 @@
 
 import json
 import os
+import re
 import sys
+import time
 import urllib.request
 
 APPS = {
@@ -20,8 +22,15 @@ WEBHOOKS = {
     "nightly": "https://nightly.slyrix.xyz/ops-hook",
 }
 FLY_STATUS_API = "https://status.flyio.net/api/v2/summary.json"
-# Наши регионы: инциденты остальных смотрим краем глаза, но орём только по этим.
-OUR_REGIONS = ("fra", "ams", "Fra", "Ams", "Frankfurt", "Amsterdam")
+# Короткие коды — только по границам слов: "fra" не матчит "France"/
+# "infrastructure", "ams" — "streams", "api" — "capacity", "edge" — "knowledge".
+OUR_REGIONS = ("fra", "ams", "Frankfurt", "Amsterdam", "germany", "netherlands")
+# Глобальные компоненты (edge, DNS, API) бьют по всем — тоже релевантны.
+GLOBAL_KEYS = ("edge", "dns", "anycast", "api", "global")
+REGION_RES = tuple(
+    re.compile(r"\b" + re.escape(k.lower()) + r"\b")
+    for k in OUR_REGIONS + GLOBAL_KEYS
+)
 TIMEOUT = 15
 STATE_FILE = os.environ.get("STATE_FILE", ".ops_state.json")
 
@@ -101,13 +110,7 @@ def save_state(state):
 
 def relevant(inc):
     blob = json.dumps(inc).lower()
-    if any(r.lower() in blob for r in OUR_REGIONS):
-        return True
-    # Глобальные компоненты (edge, DNS, API) бьют по всем — тоже релевантны.
-    for key in ("edge", "dns", "anycast", "api", "global"):
-        if key in blob:
-            return True
-    return False
+    return any(rx.search(blob) for rx in REGION_RES)
 
 
 def set_webhook(url):
@@ -132,7 +135,32 @@ def set_webhook(url):
         return False
 
 
+def check_bot():
+    """Heartbeat: токен жив? 3 попытки, иначе False (слепота алёртов)."""
+    token = os.environ.get("OPS_BOT_TOKEN", "") or os.environ.get("BOT_TOKEN", "")
+    if not token:
+        print("SKIP check_bot (no OPS_BOT_TOKEN)", file=sys.stderr)
+        return True
+    for _ in range(3):
+        try:
+            req = urllib.request.Request(
+                f"https://api.telegram.org/bot{token}/getMe",
+                headers={"User-Agent": "slyrix-ops-watch/1.0"},
+            )
+            with urllib.request.urlopen(req, timeout=TIMEOUT) as resp:
+                if json.loads(resp.read().decode("utf-8")).get("ok"):
+                    return True
+        except Exception as exc:
+            print("check_bot retry:", exc, file=sys.stderr)
+            time.sleep(10)
+    return False
+
+
 def main():
+    if not check_bot():
+        print("BOT TOKEN DEAD — alerting blind, failing loud", file=sys.stderr)
+        save_state(load_state())
+        return 1
     state = load_state()
     apps_state = state.get("apps", {})
     raw_known = state.get("incidents", [])
@@ -175,15 +203,21 @@ def main():
 
     state["apps"] = apps_state
 
-    # Failover вебхука команд: прод лежит 2 тика подряд — команды едут
-    # через найтли; прод ожил — возвращаем обратно. Флип только со сменой.
+    # Failover вебхука команд: симметричный гистерезис (по 2 тика в каждую
+    # сторону), флип только со сменой. Одиночный ok посреди дауна —
+    # флюк, не повод возвращаться.
     if apps_state.get("prod", "ok") != "ok":
         state["prod_down_streak"] = state.get("prod_down_streak", 0) + 1
+        state["prod_up_streak"] = 0
     else:
         state["prod_down_streak"] = 0
-    desired = (
-        WEBHOOKS["nightly"] if state["prod_down_streak"] >= 2 else WEBHOOKS["prod"]
-    )
+        state["prod_up_streak"] = state.get("prod_up_streak", 0) + 1
+    if state["prod_down_streak"] >= 2:
+        desired = WEBHOOKS["nightly"]
+    elif state["prod_up_streak"] >= 2 or "webhook" not in state:
+        desired = WEBHOOKS["prod"]
+    else:
+        desired = state.get("webhook", WEBHOOKS["prod"])
     if state.get("webhook") != desired:
         if set_webhook(desired):
             state["webhook"] = desired
@@ -191,7 +225,8 @@ def main():
             send(f"ops webhook → {where}")
 
     save_state(state)
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

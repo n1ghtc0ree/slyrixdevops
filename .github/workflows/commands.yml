@@ -11,6 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       actions: write # для dispatch бэкапа через GitHub API
+      contents: read # checkout-у нужен минимум
     steps:
       - uses: actions/checkout@v5
 

@@ -106,8 +106,12 @@ def main():
     except Exception as exc:
         print("getUpdates failed:", exc, file=sys.stderr)
         return
-    for upd in data.get("result", []) or []:
+    pending = data.get("result", []) or []
+    for upd in pending:
         offset = max(offset, upd.get("update_id", 0) + 1)
+    # Фолбэк-поллер после долгой паузы: очередь может содержать десятки
+    # повторов — выполняем только последние 5, остальное просто подтверждаем.
+    for upd in pending[-5:]:
         msg = upd.get("message", {}) or {}
         if str(msg.get("chat", {}).get("id", "")) != CHAT:
             continue

@@ -1,4 +1,5 @@
 .env
-__pycache__/
 .ops_state.json
+.ops_cmd_state.json
+__pycache__/
 *.pyc

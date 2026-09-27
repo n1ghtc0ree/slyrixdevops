@@ -9,8 +9,10 @@ on:
 jobs:
   backup:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
-      - uses: superfly/flyctl-actions/setup-flyctl@master
+      - uses: superfly/flyctl-actions/setup-flyctl@ed8efb33836e8b2096c7fd3ba1c8afe303ebbff1 # pinned, was @master
 
       - name: Pull prod DB
         env:
@@ -20,10 +22,10 @@ jobs:
           # затем тянем с ретраями пока она стартует.
           curl -s -o /dev/null --max-time 90 https://wiki.slyrix.xyz/health || true
           for i in 1 2 3 4 5 6; do
-            if flyctl sftp get /data/site.db ./site-prod.db -a slyrixwiki; then break; fi
+            if flyctl sftp get /data/site.db ./site-prod.db -a slyrixwiki && [ -s ./site-prod.db ]; then break; fi
             echo "prod pull retry $i, ждём 20с..."; sleep 20
           done
-          test -f ./site-prod.db
+          test -s ./site-prod.db
 
       - name: Pull nightly DB
         env:
@@ -31,10 +33,10 @@ jobs:
         run: |
           curl -s -o /dev/null --max-time 90 https://nightly.slyrix.xyz/health || true
           for i in 1 2 3 4 5 6; do
-            if flyctl sftp get /data/site.db ./site-nightly.db -a slyrixwiki-nightly; then break; fi
+            if flyctl sftp get /data/site.db ./site-nightly.db -a slyrixwiki-nightly && [ -s ./site-nightly.db ]; then break; fi
             echo "nightly pull retry $i, ждём 20с..."; sleep 20
           done
-          test -f ./site-nightly.db
+          test -s ./site-nightly.db
 
       - name: Rename DBs with date
         run: |
@@ -51,21 +53,15 @@ jobs:
             [ "$OUT" = "ok" ] || exit 1
           done
 
-      - uses: actions/upload-artifact@v5
-        with:
-          name: site-dbs-${{ github.run_id }}
-          path: |
-            site-stable-*.db
-            site-nightly-*.db
-          retention-days: 30
-
+      # Артефакты НЕ грузим: репа паблик, артефакты качает кто угодно,
+      # а внутри сырые базы. Копии: файлы в ТГ + снапшоты вольюмов Fly.
       - name: Send DBs to Telegram
         env:
           OPS_BOT_TOKEN: ${{ secrets.OPS_BOT_TOKEN }}
           OPS_CHAT_ID: ${{ secrets.OPS_CHAT_ID }}
         run: |
           for f in site-stable-*.db site-nightly-*.db; do
-            curl -s -o /dev/null -w "$f tg:%{http_code}\n" \
+            curl -s -f -o /dev/null -w "$f tg:%{http_code}\n" \
               -X POST "https://api.telegram.org/bot$OPS_BOT_TOKEN/sendDocument" \
               -F chat_id="$OPS_CHAT_ID" -F document=@"$f";
           done
