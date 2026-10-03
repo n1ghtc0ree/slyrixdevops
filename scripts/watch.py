@@ -22,6 +22,7 @@ WEBHOOKS = {
     "nightly": "https://nightly.slyrix.xyz/ops-hook",
 }
 FLY_STATUS_API = "https://status.flyio.net/api/v2/summary.json"
+FLY_STATUS_INCIDENT_URL = "https://status.flyio.net/incidents/"
 # Короткие коды — только по границам слов: "fra" не матчит "France"/
 # "infrastructure", "ams" — "streams", "api" — "capacity", "edge" — "knowledge".
 OUR_REGIONS = ("fra", "ams", "Frankfurt", "Amsterdam", "germany", "netherlands")
@@ -122,6 +123,10 @@ def save_state(state):
         print("state save failed:", exc, file=sys.stderr)
 
 
+def fly_incident_url(inc_id):
+    return f"{FLY_STATUS_INCIDENT_URL}{inc_id}"
+
+
 def relevant(inc):
     blob = json.dumps(inc).lower()
     return any(rx.search(blob) for rx in REGION_RES)
@@ -176,6 +181,12 @@ def main():
         save_state(load_state())
         return 1
     state = load_state()
+    now_tick = int(time.time())
+    last_tick = state.get("last_tick", 0)
+    if last_tick and now_tick - last_tick > 1800:
+        gap_h = round((now_tick - last_tick) / 3600, 1)
+        send(f"ops-watch молчал {gap_h} ч (крон стоял?) — алерты за это время могли опоздать")
+    state["last_tick"] = now_tick
     apps_state = state.get("apps", {})
     raw_known = state.get("incidents", [])
     # Миграция со старого формата (плоский список id).
@@ -207,15 +218,15 @@ def main():
             if prev is None:
                 send(
                     f"FLY incident [{inc['impact']}]: {inc['name']} "
-                    f"(status: {inc['status']})"
+                    f"(status: {inc['status']})\n{fly_incident_url(inc['id'])}"
                 )
             elif prev != inc["status"]:
                 send(
                     f"FLY incident [{inc['impact']}]: {inc['name']} "
-                    f"({prev} → {inc['status']})"
+                    f"({prev} → {inc['status']})\n{fly_incident_url(inc['id'])}"
                 )
         for gone in known_incidents.keys() - current.keys():
-            send(f"FLY incident resolved: {gone}")
+            send(f"FLY incident resolved: {gone}\n{fly_incident_url(gone)}")
         state["incidents"] = current
         state["fly_fail_streak"] = 0
 

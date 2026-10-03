@@ -1,8 +1,10 @@
 name: ops-watch
 
 on:
-  schedule:
-    - cron: "*/5 * * * *"
+  # Крон GitHub ВЫКЛЮЧЕН: каденс отдана машине slyrix-ops (иначе два
+  # писателя в один стейт = дубли алертов). Ручной запуск оставлен.
+  # schedule:
+  #   - cron: "*/5 * * * *"
   workflow_dispatch:
 
 jobs:

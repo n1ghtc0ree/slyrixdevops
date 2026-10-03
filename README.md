@@ -4,7 +4,8 @@
 
 ## Что внутри
 
-- `scripts/watch.py` — вотчер (только stdlib): `/health` прод+найтли, инциденты Fly statuspage API. Орёт в опс-бота только на переходах ok↔bad и на новых/закрытых инцидентах (дедуплика через `STATE_FILE`).
+- `scripts/watch.py` — вотчер (только stdlib): `/health` прод+найтли, инциденты Fly statuspage API. Орёт в опс-бота только на переходах ok↔bad и на новых/закрытых инцидентах (дедуплика через `STATE_FILE`). Ссылки на инциденты: `status.flyio.net/incidents/{id}`.
+- Машина `slyrix-ops` (lhr, вне Франкфурта): крутит вотчер петлёй раз в 5 мин (`loop.sh`), стейт на волюме `ops_state` (`/data`). Вебхук команд живёт НЕ здесь, а в самих аппах (`routers/ops.py`, мигрирует прод↔найтли) — машина только смотрит и орёт, внутрь наблюдаемого не лезет.
 ## Команды боту — мгновенно через вебхук
 
 `/ping`, `/backup`, `/logs [n]`, `/status`, `/help` живут в коде аппов
@@ -22,7 +23,8 @@ curl -X POST "https://api.telegram.org/bot$OPS_BOT_TOKEN/setWebhook" `
 `scripts/commands.py` + `ops-commands` (только ручной запуск) — fallback:
 если вебхук убит (`deleteWebhook`), крон-опрос `getUpdates` снова работает.
 Секреты: + `OPS_HOOK_SECRET` (и на машинах, и в Secrets репы для failover).
-- `.github/workflows/watch.yml` — крон каждые 5 мин.
+- `.github/workflows/watch.yml` — крон ВЫКЛЮЧЕН (каденс на машине slyrix-ops);
+  остался только ручной запуск для тестов.
 - `.github/workflows/backup.yml` — бэкап `site.db` с обеих машин по воскресеньям + вручную: файлы в ТГ (`site-stable-ДАТА.db`, `site-nightly-ДАТА.db`), гейт `integrity_check`, без артефактов (репа паблик).
 
 ## Секреты репозитория (Settings → Secrets → Actions)

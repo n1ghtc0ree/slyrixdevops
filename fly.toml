@@ -1,0 +1,14 @@
+app = 'slyrix-ops'
+primary_region = 'lhr'
+
+# Отдельная крошечная машина только под вотчер: вне Франкфурта, чтобы
+# региональный даун аппов не ронял наблюдателя вместе с ними.
+# Публичных сервисов нет (только исходящие poll + Telegram) — дефолтной
+# shared-cpu-1x 256MB хватает за глаза.
+
+[env]
+  STATE_FILE = '/data/.ops_state.json'
+
+[mounts]
+  source = 'ops_state'
+  destination = '/data'
